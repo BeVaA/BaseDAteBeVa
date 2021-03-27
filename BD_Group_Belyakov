@@ -1,0 +1,312 @@
+Многотабличные запросы
+Номер 1.Вывести все имена и фамилии студентов, и название хобби, которым занимается этот студент.
+SELECT st.name, st.surname, hb.name
+FROM student st,
+	 hobby hb,
+	 student_hobby sth
+WHERE st.id= sth.id
+AND hb.id= sth.hobby_id
+
+Номер 2.Вывести информацию о студенте, занимающимся хобби самое продолжительное время.
+SELECT s.name, s.surname, h.name
+FROM student_hobby sh, hobby h, student s
+WHERE h.id = sh.hobby_id AND s.id = sh.id AND sh.date_finish IS NULL
+AND sh.date_start = 
+(
+	SELECT MIN(sh.date_start)
+	FROM student_hobby sh
+)
+
+Номер 3.Вывести имя, фамилию, номер зачетки и дату рождения для студентов, средний балл которых выше среднего, а сумма риска всех хобби, которыми он занимается в данный момент, больше 0.9.
+SELECT DISTINCT st.score, st.name, st.surname, st.date_birth
+FROM student st
+INNER JOIN
+	(
+		SELECT SUM(h.risk) as r_summ, sth.student_id
+		FROM hobby h, 
+			student_hobby sth
+		WHERE h.id= sth.hobby_id
+		GROUP BY sth.student_id
+	)t
+ON st.id = t.student_id
+AND t.r_summ > 0.9
+WHERE st.score > 
+	(
+		SELECT AVG(score)::numeric(3,2)
+		FROM student
+	)	
+  
+  
+Номер 4.Вывести фамилию, имя, зачетку, дату рождения, название хобби и длительность в месяцах, для всех завершенных хобби Диапазон дат.
+SELECT st.name, st.surname, st.n_group, st.date_birth, t.name, t.shtime
+FROM student st
+INNER JOIN
+	(
+		SELECT s.student_id, h.name as name,
+			(date_part('years', age(date_finish, date_start)) * 12 + date_part('month', age(date_finish, date_start))) as shtime
+		FROM student_hobby s,
+			hobby h
+		WHERE s.hobby_id = h.id AND s.date_finish IS NOT NULL
+	)t
+ON st.id = t.student_id
+
+
+Номер 5.Вывести фамилию, имя, зачетку, дату рождения студентов, которым исполнилось N полных лет на текущую дату, и которые имеют более 1 действующего хобби.
+SELECT st.name, st.surname, st.n_group, st.date_birth
+FROM student st
+INNER JOIN
+	(
+		SELECT COUNT(s.hobby_id), s.id
+		FROM hobby h, 
+			student_hobby s
+		WHERE h.id= s.hobby_id AND s.date_finish IS NULL
+		GROUP BY s.id
+	)t
+ON st.id = t.id
+WHERE (date_part('years', age(now(), date_birth))) >= 0 
+
+
+Номер 6.Найти средний балл в каждой группе, учитывая только баллы студентов, которые имеют хотя бы одно действующее хобби.
+SELECT AVG(st.score)::numeric(3,2), st.n_group
+FROM student st
+INNER JOIN
+	(
+		SELECT COUNT(s.hobby_id), s.id
+		FROM hobby h, 
+			student_hobby s
+		WHERE h.id= s.hobby_id AND s.date_finish IS NULL
+		GROUP BY s.id
+	)t
+ON st.id = t.id
+GROUP BY st.n_group
+
+
+Номер 7.Найти название, риск, длительность в месяцах самого продолжительного хобби из действующих, указав номер зачетки студента.
+SELECT h.name, h.risk, extract(month from (justify_days(now() - sh.date_start))) AS time_month
+FROM hobby h, student_hobby sh
+WHERE sh.hobby_id = h.id 
+	AND sh.date_start =
+(
+	SELECT MIN(date_start)
+	FROM student_hobby
+	WHERE date_finish IS NULL
+)
+
+
+Номер 8.Найти все хобби, которыми увлекаются студенты, имеющие максимальный балл.
+SELECT h.name
+FROM hobby h, student_hobby sh
+INNER JOIN
+(
+	SELECT s.id
+	FROM student s
+	WHERE s.score = 
+	(
+		SELECT MAX(score)
+		FROM student
+	)
+)t
+ON sh.id = t.id
+WHERE h.id = sh.hobby_id
+
+
+Номер 9.Найти все действующие хобби, которыми увлекаются троечники 2-го курса.
+SELECT h.name
+FROM hobby h, student_hobby sh
+INNER JOIN
+(
+	SELECT s.id
+	FROM student s
+	WHERE s.score BETWEEN 3 AND 4 AND s.n_group BETWEEN 2000 AND 3000
+)t
+ON sh.student_id = t.id
+WHERE sh.hobby_id = h.id AND sh.date_finish IS NULL
+
+
+Номер 10.Найти номера курсов, на которых более 50% студентов имеют более одного действующего хобби.
+SELECT DISTINCT chr(ascii(s.n_group::varchar)) AS course, t.count_h,
+tt.count_all
+FROM student s
+INNER JOIN
+(
+SELECT tt.count as count_h, chr(ascii(n_group::varchar)) AS course, student.id
+FROM student,
+(
+SELECT COUNT(student_hobby.id), student_hobby.id
+FROM student_hobby
+WHERE date_finish IS NULL
+GROUP BY student_hobby.id
+)tt
+WHERE student.id = tt.id
+)t
+ON s.id = t.id
+LEFT JOIN
+(
+SELECT COUNT(tmp.course) as count_all, tmp.course
+FROM
+(
+SELECT chr(ascii(n_group::varchar)) AS course
+FROM student
+)tmp
+GROUP BY tmp.course
+)tt
+ON tt.course = t.course
+WHERE t.count_h > 0.5 * tt.count_all
+
+
+Номер 11.Вывести номера групп, в которых не менее 60% студентов имеют балл не ниже 4.
+
+SELECT DISTINCT s.n_group
+FROM student s
+INNER JOIN
+(
+	SELECT COUNT(*), n_group
+	FROM student
+	WHERE score >= 4
+	GROUP BY n_group	
+)tscore
+ON s.n_group = tscore.n_group
+INNER JOIN
+(
+	SELECT COUNT(*), n_group
+	FROM student
+	GROUP BY n_group	
+)t
+ON s.n_group = t.n_group
+WHERE tscore.n_group = t.n_group AND tscore.count >= 0.6 * t.count
+
+Номер 12.Для каждого курса подсчитать количество различных действующих хобби на курсе.
+SELECT COUNT(t.hobby_id), t.course
+FROM student s
+INNER JOIN
+(
+	SELECT tt.hobby_id, chr(ascii(n_group::varchar)) AS course, student.id
+	FROM student
+	INNER JOIN
+	(
+		SELECT hobby_id, student_hobby.id
+		FROM student_hobby
+		WHERE date_finish IS NULL
+	)tt
+	ON student.id = tt.id
+)t
+ON s.id = t.id
+GROUP BY t.course
+
+
+Номер 13.Вывести номер зачётки, фамилию и имя, дату рождения и номер курса для всех отличников, не имеющих хобби. Отсортировать данные по возрастанию в пределах курса по убыванию даты рождения.
+SELECT s.id, s.surname, s.name, s.date_birth, chr(ascii(s.n_group::varchar)) AS course
+FROM student s
+INNER JOIN
+(
+	SELECT id
+	FROM student
+	WHERE score > 4.5 
+	AND id NOT IN 
+	(
+		SELECT DISTINCT student_hobby.id
+		FROM student_hobby
+	)
+)t
+ON s.id = t.id
+ORDER BY chr(ascii(s.n_group::varchar)) ASC, s.date_birth DESC
+
+
+Номер 14.Создать представление, в котором отображается вся информация о студентах, которые продолжают заниматься хобби в данный момент и занимаются им как минимум 5 лет.
+CREATE OR REPLACE VIEW stnow5 AS
+SELECT s.*
+FROM student s
+INNER JOIN
+(
+	SELECT DISTINCT student_hobby.id AS id
+	FROM student_hobby
+	WHERE date_finish IS NULL AND extract(year from (justify_days(now() - date_start))) >= 5
+)t
+ON s.id = t.id
+
+
+Номер 15.Для каждого хобби вывести количество людей, которые им занимаются.
+CREATE OR REPLACE VIEW count_hobby AS
+SELECT h.name, t.count
+FROM hobby h
+INNER JOIN
+(
+	SELECT COUNT(tmp.s_id), tmp.h_id
+	FROM
+	(
+		SELECT hobby_id as h_id, student_id as s_id
+		FROM student_hobby
+	)tmp
+	GROUP BY tmp.h_id
+)t
+ON h.id = t.h_id
+
+
+Номер 16.Вывести ИД самого популярного хобби.
+CREATE OR REPLACE VIEW popular_hobby_id AS
+SELECT h.id
+FROM hobby h, count_hobby ch
+WHERE ch.count = 
+(
+	SELECT MAX(count)
+	FROM count_hobby
+)
+AND h.name = ch.name
+
+Номер 17.Вывести всю информацию о студентах, занимающихся самым популярным хобби.
+SELECT s.*
+FROM student s
+INNER JOIN
+(
+	SELECT student_hobby.id
+	FROM student_hobby, popular_hobby_id ph
+	WHERE hobby_id = ph.id
+)t
+ON s.id = t.id
+
+
+
+
+Номер 19.Вывести 10 студентов, которые занимаются одним (или несколькими) хобби самое продолжительно время.
+
+Вывести номера групп (без повторений), в которых учатся студенты из предыдущего запроса.
+
+Создать представление, которое выводит номер зачетки, имя и фамилию студентов, отсортированных по убыванию среднего балла.
+
+Представление: найти каждое популярное хобби на каждом курсе.
+
+Представление: найти хобби с максимальным риском среди самых популярных хобби на 2 курсе.
+
+Представление: для каждого курса подсчитать количество студентов на курсе и количество отличников.
+
+Представление: самое популярное хобби среди всех студентов.
+
+Создать обновляемое представление.
+
+Для каждой буквы алфавита из имени найти максимальный, средний и минимальный балл. (Т.е. среди всех студентов, чьё имя начинается на А (Алексей, Алина, Артур, Анджела) найти то, что указано в задании. Вывести на экран тех, максимальный балл которых больше 3.6
+
+Для каждой фамилии на курсе вывести максимальный и минимальный средний балл. (Например, в университете учатся 4 Иванова (1-2-3-4). 1-2-3 учатся на 2 курсе и имеют средний балл 4.1, 4, 3.8 соответственно, а 4 Иванов учится на 3 курсе и имеет балл 4.5. На экране должно быть следующее: 2 Иванов 4.1 3.8 3 Иванов 4.5 4.5
+
+Для каждого года рождения подсчитать количество хобби, которыми занимаются или занимались студенты.
+
+Для каждой буквы алфавита в имени найти максимальный и минимальный риск хобби.
+
+Для каждого месяца из даты рождения вывести средний балл студентов, которые занимаются хобби с названием «Футбол»
+
+Вывести информацию о студентах, которые занимались или занимаются хотя бы 1 хобби в следующем формате: Имя: Иван, фамилия: Иванов, группа: 1234
+
+Найдите в фамилии в каком по счёту символа встречается «ов». Если 0 (т.е. не встречается, то выведите на экран «не найдено».
+
+Дополните фамилию справа символом # до 10 символов.
+
+При помощи функции удалите все символы # из предыдущего запроса.
+
+Выведите на экран сколько дней в апреле 2018 года.
+
+Выведите на экран какого числа будет ближайшая суббота.
+
+Выведите на экран век, а также какая сейчас неделя года и день года.
+
+Выведите всех студентов, которые занимались или занимаются хотя бы 1 хобби. Выведите на экран Имя, Фамилию, Названию хобби, а также надпись «занимается», если студент продолжает заниматься хобби в данный момент или «закончил», если уже не занимает.
+
+Для каждой группы вывести сколько студентов учится на 5,4,3,2. Использовать обычное математическое округление. 
