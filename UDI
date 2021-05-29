@@ -23,3 +23,14 @@ WHERE date_finish IS NOT NULL;
 №10
 INSERT INTO hobby (id, name, risk) 
 VALUES (13, 'Учёба', 7);
+
+
+№11
+DELETE 
+FROM student
+WHERE id = 2;
+
+№12
+UPDATE student
+SET n_group = n_group + 1000
+WHERE n_group < 4000;
