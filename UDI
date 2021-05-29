@@ -29,8 +29,23 @@ VALUES (16, 4, 5, '11-15-2009',null);
 INSERT INTO hobby (id, name, risk) 
 VALUES (13, 'Учёба', 7);
 
+№ 11
+UPDATE student_hobby
+SET hobby_id = 12
+FROM student 
+INNER JOIN
+(
+	SELECT id
+	FROM student
+	WHERE score > 3.2
+)a
+ON student.id = a.id
+WHERE student_id = a.id;
+SELECT *
+FROM student
 
-№11
+
+№13
 DELETE 
 FROM student
 WHERE id = 2;
@@ -39,5 +54,9 @@ WHERE id = 2;
 UPDATE student
 SET n_group = n_group + 1000
 WHERE n_group < 4000;
+
+№14
+update student
+set
 
 
