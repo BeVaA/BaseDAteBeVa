@@ -15,6 +15,12 @@ FROM student
 WHERE id = 21;
 
 
+№5
+update student
+SET score = score + 0.01
+FROM student_hobby 
+WHERE student_hobby.student_id = student.id
+
 №6
 DELETE
 FROM student_hobby
@@ -58,5 +64,20 @@ WHERE n_group < 4000;
 №14
 update student
 set
+
+№15
+DELETE
+FROM student
+WHERE id =
+(SELECT student.id
+	FROM student 
+	INNER JOIN
+	(
+		SELECT student_id as aid , date_start
+		FROM student_hobby
+	)a
+	ON student.id = a.aid
+	WHERE date_birth > date_start
+)
 
 
