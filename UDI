@@ -20,6 +20,11 @@ DELETE
 FROM student_hobby
 WHERE date_finish IS NOT NULL;
 
+№7
+INSERT INTO student_hobby 
+(id, student_id, hobby_id, date_start,date_finish) 
+VALUES (16, 4, 5, '11-15-2009',null);
+
 №10
 INSERT INTO hobby (id, name, risk) 
 VALUES (13, 'Учёба', 7);
@@ -34,3 +39,5 @@ WHERE id = 2;
 UPDATE student
 SET n_group = n_group + 1000
 WHERE n_group < 4000;
+
+
